@@ -1,0 +1,129 @@
+
+
+--1) Get a list of the 3 long-standing customers for each country
+
+--1) STEP 1 & 2
+WITH order_info AS ( --first, get the basic necessary info together
+SELECT *,
+	c.customer_id as c_customer_id,
+	o.customer_id as o_customer_id --this isn't necessary, but avoids an 'ambiguous' error I was getting
+FROM orders as o 
+	JOIN order_details as od ON o.order_id = od.order_id
+	JOIN products as p ON od.product_id = p.product_id
+	JOIN customers as c ON o.customer_id = c.customer_id
+)
+SELECT 
+	c_customer_id,
+	country,
+	(SELECT MAX(order_date) FROM orders) - MIN(order_date) as customer_age
+FROM order_info
+GROUP BY c_customer_id, country;
+
+--1) STEP 1,2,3,4
+WITH order_info AS ( --first, get the basic necessary info together
+SELECT *,
+	c.customer_id as c_customer_id,
+	o.customer_id as o_customer_id --this isn't necessary, but avoids an 'ambiguous' error I was getting
+FROM orders as o 
+	JOIN order_details as od ON o.order_id = od.order_id
+	JOIN products as p ON od.product_id = p.product_id
+	JOIN customers as c ON o.customer_id = c.customer_id
+), --mind the comma between CTE's
+customer_ages as ( -- THEN, get totals for each customer
+SELECT 
+	c_customer_id,
+	country,
+	(SELECT MAX(order_date) FROM orders) - MIN(order_date) as customer_age
+FROM order_info
+GROUP BY c_customer_id, country --customers map one-to-one to country
+)
+, --mind the comma between CTE's
+longest_standing_customers as ( --customers ranked by total WITHIN the country they live
+SELECT *,
+	RANK() OVER(PARTITION BY country ORDER BY customer_age DESC)
+FROM customer_ages
+)
+SELECT *
+FROM longest_standing_customers
+WHERE rank <= 3; --return just the top 3 for each country
+
+
+
+
+
+-- Modify the previous query to get the 3 newest customers in each each country.
+WITH order_info AS ( --first, get the basic necessary info together
+SELECT *,
+	c.customer_id as c_customer_id,
+	o.customer_id as o_customer_id --this isn't necessary, but avoids an 'ambiguous' error I was getting
+FROM orders as o 
+	JOIN order_details as od ON o.order_id = od.order_id
+	JOIN products as p ON od.product_id = p.product_id
+	JOIN customers as c ON o.customer_id = c.customer_id
+), --mind the comma between CTE's
+customer_ages as ( -- THEN, get totals for each customer
+SELECT 
+	c_customer_id,
+	country,
+	(SELECT MAX(order_date) FROM orders) - MIN(order_date) as customer_age
+FROM order_info
+GROUP BY c_customer_id, country --customers map one-to-one to country
+)
+, --mind the comma between CTE's
+longest_standing_customers as ( --customers ranked by total WITHIN the country they live
+SELECT *,
+	RANK() OVER(PARTITION BY country ORDER BY customer_age) --ONLY CHANGE: ASC vs DESC
+FROM customer_ages
+)
+SELECT *
+FROM longest_standing_customers
+WHERE rank <= 3; --return just the top 3 for each country
+
+
+
+
+
+
+
+
+
+-- Get the 3 most frequently ordered products in each city
+-- FOR SIMPLICITY, we're interpreting "most frequent" as 
+-- "highest number of total units ordered within a country"
+-- hint: do something with the quanity column
+
+-- STEP 1 & 2
+WITH order_info AS ( --first, get the basic necessary info together
+SELECT *,
+	p.product_id as p_product_id --avoids "ambiguity error"
+FROM orders as o 
+	JOIN order_details as od ON o.order_id = od.order_id
+	JOIN products as p ON od.product_id = p.product_id
+	JOIN customers as c ON o.customer_id = c.customer_id
+)
+SELECT p_product_id,
+	city,
+	SUM(quantity) as orders_per_city 
+FROM order_info
+GROUP BY city, p_product_id
+ORDER BY p_product_id;
+	
+-- STEPS 1,2,3,4
+WITH order_info AS ( --first, get the basic necessary info together
+SELECT *,
+	p.product_id as p_product_id --avoids "ambiguity error"
+FROM orders as o 
+	JOIN order_details as od ON o.order_id = od.order_id
+	JOIN products as p ON od.product_id = p.product_id
+	JOIN customers as c ON o.customer_id = c.customer_id
+)
+,
+product_totals_by_city as ( --total orders per country for each product
+SELECT p_product_id,
+	city,
+	SUM(quantity) as orders_per_city 
+FROM order_info
+GROUP BY city, p_product_id
+ORDER BY p_product_id
+),
+ranked_products_by_city as ( --now with ranking
